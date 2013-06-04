@@ -1,0 +1,69 @@
+channel to frame-type
+=====================
+
+gps mesh
+--------
+every gps is equal to multiple of 10800 =: STEP.  gridded gps := gr_gps := gps/STEP * STEP
+
+proposed cli syntax
+-------------------
+
+   chtofr ch0,ch1,ch2,...,chn [--gpsstart S [now]] [--gpsend E]
+
+return JSON:
+   { 'ft0': nc0, 'ft1': nc1, ... }
+
+SQL
+===
+
+table structure
+---------------
+table t_channel
+  channel_pk, channel(u)
+
+table t_ch_prefix
+  ch_prefix_pk, ch_prefix(u)
+
+table t_frame_type
+  frame_type_pk, frame_type(u)
+
+table t_frame_info
+  frame_info_pk, (frame_type_pk, gps)(u), nchannels, fpath, ...
+
+table t_map
+  ch_prefix_pk, channel_pk, frame_type_pk, gps
+
+sql query
+---------
+SELECT ft, max(nc) FROM ... WHERE cn=c0  OR cn=c1 OR ... AND gps [>]= g0 [AND gps <= end];
+
+
+comments
+--------
+sqlite will work well with
+
+  *   1  writer, cron process, every 10800 s
+  *  +1  reader
+
+
+cron job to update state
+------------------------
+
+chtofrscan PATHLIST [options, include "--force-scan"]
+
+walk each PATH in PATHLIST
+    if dir is cold(): continue
+    else:
+        if frames are not in dir: continue
+	else:
+            get frametype, gpsstart, channel list and abspath of newest file in segment [gridded_gps()-10800, gridded_gps()]
+            update database (INSERT OR IGNORE ...)
+            add dir, now() to cache
+
+cache: directory and read time of last scan. Data stored as a dict
+with cache_d[dir_path] == read time
+
+'cold' means dir is in cache_d and ctime is same as cache_d[dir].
+'hot' means not cold. I.e. dir is not in cache_d (descend!) or it is a
+key and cache_d and ctime is larger than cache_d[dir_path] (descend!).
+Put dirs in cache_d whenever dir contains frames.
