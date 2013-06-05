@@ -52,7 +52,7 @@ def _pk(conn, tname, arg, col=None, ):
     select_sql=select_tmpl.substitute(sql_dict)
     pk_rp = conn.execute(select_sql).fetchone()
     if pk_rp is None:
-        insert_str="INSERT IGNORE INTO `t_${tname}` SET " + ins_suffix
+        insert_str="INSERT INTO `t_${tname}` SET " + ins_suffix
         insert_tmpl=Template(insert_str)
         insert_sql=insert_tmpl.substitute(sql_dict)
         rp=conn.execute(insert_sql)
@@ -102,7 +102,10 @@ if __name__ == "__main__":
 
     usage = "usage: %prog [options]"
     description = """The db witer of frame channel data. Input is plain text with fields
-    'ch_prefix channel frame_type gps nchannels fname'"""
+    'ch_prefix channel frame_type gps nchannels fname'. It is an error
+    to write rows to db that would cause uniqueness constraints in the
+    db to be violated. This is a potential issue for (frametype, gps) key
+    that is associated with multiple filepaths or nchannels."""
     version = "%prog 0.1"
 
     parser = OptionParser(usage, version=version, description=description)

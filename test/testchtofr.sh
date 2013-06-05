@@ -34,6 +34,25 @@ $SUCCESS
 #<<< TEST
 
 #>>> TEST
+cleardb
+# build a duplicate ft-gps key, this should cause an error.
+# 100 channels, filename is 100
+echo PREFIX_L0 CHANNEL_PEM_L0 FT_0 10800 100 /qwer/foo/100 >> $INPUT
+# 200 channels, filename is 200 
+echo PREFIX_L0 CHANNEL_PEM_L0 FT_0 10800 200 /qwer/foo/200 >> $INPUT
+# write to db, expect an error!
+set +e
+$BIN $OPT --input $INPUT 2> /dev/null
+if [ $? -eq 0 ]; then 
+    echo duplicate key should have generated an error, it did not!
+    exit 1; 
+fi
+set -e
+rm -f $INPUT
+$SUCCESS
+#<<< TEST
+
+#>>> TEST
 # test nonempty input
 cleardb
 echo PREFIX_LX CHANNEL_PEM_LX FT_X 5 10 /qwer/asdf/sdfg/foo >> $INPUT
