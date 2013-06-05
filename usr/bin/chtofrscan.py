@@ -3,12 +3,24 @@
 
 DEFAULT_FRCHAN="/usr/bin/FrChannels"
 DEFAULT_STEP=10800 # 8 hours
+DEFAULT_OUTPUT="-"
+
+# dirpath: last read time
+# only put dirpath here if dirpath contains frames or is empty
+CACHE={}
 
 # expected use pattern:
 #   chtofrscan PATHLIST [options] | chtofr [options]
 
 # scan each PATH in PATHLIST, use cache as optimization, write to
 # stdout as we go...
+
+def _output(path, gps, step=DEFAULT_STEP, frchannels=DEFAULT_FRCHAN, 
+            output=DEFAULT_OUTPUT):
+    # walk path, skipping all paths that we have seen on interesting
+    # directories, list them, parse filenames, get the latest gps in
+    # interval [gps-step, gps], write info to filehandle output
+    pass
 
 # if GPS is none, set to  int(now())/STEP*STEP.
 # 
@@ -18,8 +30,8 @@ DEFAULT_STEP=10800 # 8 hours
 if __name__ == "__main__":
     from optparse import OptionParser
 
-    usage = "usage: %prog PATHLIST [options]"
-    description = """Scan PATHLIST for files, write output in chtofr-format to FILE
+    usage = "usage: %prog PATH0 PATH1 ... PATHn [options]"
+    description = """Scan each PATH for files, write output in chtofr-format to OUTPUT
                      until done."""
     version = "%prog 0.1"
 
@@ -34,7 +46,14 @@ if __name__ == "__main__":
     parser.add_option("-c", "--cache",
                       help="[default: None] cache file", default=None)
     parser.add_option("-f", "--frchannels",
-                      help="Path to FrChannels binary", default=DEFAULT_FRCHAN)
+                      help="[default: %s ] Path to FrChannels binary" % DEFAULT_FRCHAN, 
+                      default=DEFAULT_FRCHAN)
+    parser.add_option("-o", "--output",
+                      help="[default: %s ] write to OUTPUT" % DEFAULT_OUTPUT, 
+                      default=DEFAULT_OUTPUT)
     (opts, args) = parser.parse_args()
 
-    
+    kwargs={"step": opts.step, "frchannels": opts.frchannels, "output": opts.output}
+    for path in args:
+        _output(path, **kwargs)
+
