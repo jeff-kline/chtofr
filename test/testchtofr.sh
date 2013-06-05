@@ -21,6 +21,7 @@ function cleardb {
 
 BIN=../usr/bin/chtofr.py
 OPT="--database ${DBCFG}"
+CACHE=cachef.pkl
 
 #>>> TEST
 # test empty input
@@ -71,6 +72,28 @@ set -e
 rm -f $INPUT
 $SUCCESS
 #<<< TEST
+
+#>>> TEST
+cleardb
+# test caching
+rm -f $CACHE
+f=0
+g=10800
+for j in `seq 1000`; do
+    for l in `seq 2`; do
+	echo PREFIX_L${l} CHANNEL_PEM_L${j} FT_${f} $(( ${g}*10800 )) ${g} /qwer/foo/${g} >> $INPUT
+    done;
+done;
+
+# write to db, twice!
+# first create the cache
+$BIN $OPT --input $INPUT --cache $CACHE 
+# next, read from the cache (this should run much faster than the previous cmd)
+$BIN $OPT --input $INPUT --cache $CACHE 
+
+rm -f $CACHE
+$SUCCESS
+#<<<TEST
 
 #>>> TEST
 cleardb

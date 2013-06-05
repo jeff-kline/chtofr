@@ -1,10 +1,13 @@
 #!/usr/bin/env python
+import cPickle as pickle
 import numbers
+
 
 DEFAULT_STEP=10800 # 8 hours
 DEFAULT_DATABASE_FILE = "/etc/chtofr/db.json"
 
-# store known pk's to avoid multiple lookups
+# store known pk's to avoid multiple lookups this can also be
+# populated from a file, but still want it as a global variable.
 CACHED_PK={}
 
 def _pk(conn, tname, arg, col=None, ):
@@ -29,10 +32,8 @@ def _pk(conn, tname, arg, col=None, ):
 
     # a pair of sql string formatting functions
     def sqlvstr(v):
-        if isinstance(v, numbers.Real):
-            return str(v)
-        else:
-            return "'%s'" % str(v)
+        # this is fine since we only use strings and integer-like types
+        return "'%s'" % str(v)
     def sqlcstr(v):
         return "`%s`" % str(v)
 
@@ -104,24 +105,34 @@ if __name__ == "__main__":
     description = """The db witer of frame channel data. Input is plain text with fields
     'ch_prefix channel frame_type gps nchannels fname'. It is an error
     to write rows to db that would cause uniqueness constraints in the
-    db to be violated. This is a potential issue for (frametype, gps) key
-    that is associated with multiple filepaths or nchannels."""
+    db to be violated. This is a potential issue for (frametype, gps)
+    key that is associated with multiple filepaths or nchannels. """
     version = "%prog 0.1"
 
     parser = OptionParser(usage, version=version, description=description)
     parser.add_option("-d", "--database",
                       help="[default: %s] Configuration file for database access" %
                       (DEFAULT_DATABASE_FILE), default=DEFAULT_DATABASE_FILE)
+    helpstr="""[default: %d] GPS step size.  Every gps time in INPUT must be a
+               multiple of STEP. This is for debugging.""" % (DEFAULT_STEP)
     parser.add_option("-s", "--step",
-                      help="[default: %d] GPS step size" %
-                      (DEFAULT_STEP), default=DEFAULT_STEP, type="int")
+                      help=helpstr, default=DEFAULT_STEP, type="int")
     parser.add_option("-i", "--input",
                       help="[default: -] input file", default=None)
+    parser.add_option("-c", "--cache",
+                      help="[default: None] cache file", default=None)
+
     (opts, args) = parser.parse_args()
+
+    # renew CACHED_PK before it contains anything
+    if opts.cache:
+        try:
+            with open(opts.cache, 'r') as fh:
+                CACHED_PK=pickle.load(fh)
+        except: pass
 
     with open(opts.database) as fh:
         db = json.load(fh)["db"]
-
     url_tmpl = Template("${type}://${user}:${passwd}@${host}/${db}")
     url = url_tmpl.substitute(db)
     engine = create_engine(url, pool_recycle=3600, max_overflow=30)
@@ -134,3 +145,7 @@ if __name__ == "__main__":
                 _input_many(conn, fh, step=opts.step)
         else:
             _input_many(conn, sys.stdin)
+
+    if opts.cache:
+        with open(opts.cache, 'w') as fh:
+            pickle.dump(CACHED_PK, fh)
