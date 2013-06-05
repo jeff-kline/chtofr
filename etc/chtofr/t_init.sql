@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS t_channel (
 
 CREATE TABLE IF NOT EXISTS t_ch_prefix (
     `ch_prefix_pk` INTEGER(11) UNSIGNED NOT NULL  AUTO_INCREMENT,
-    `ch_prefix` VARCHAR(4)  NOT NULL,
+    `ch_prefix` VARCHAR(16)  NOT NULL,
 
     /* meta */
     PRIMARY KEY (`ch_prefix_pk`),
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS t_frame_info (
 
 /* ch_prefix_pk, channel_pk, frame_info_pk */
 CREATE TABLE IF NOT EXISTS t_map (
-    `map_pk` INTEGER UNSIGNED NOT NULL  AUTO_INCREMENT,
+    `map_pk` BIGINT UNSIGNED NOT NULL  AUTO_INCREMENT,
     `ch_prefix_pk` INTEGER UNSIGNED NOT NULL,
     `channel_pk` INTEGER UNSIGNED NOT NULL,
     `frame_info_pk` INTEGER UNSIGNED NOT NULL,
