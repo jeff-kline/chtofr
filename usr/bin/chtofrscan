@@ -12,7 +12,6 @@ import tempfile
 
 DEFAULT_FRCHAN="/usr/bin/FrChannels"
 DEFAULT_STEP=10800 # 8 hours
-DEFAULT_OUTPUT="-"
 
 # schema of CACHE is
 # { <dirpath>: <last read time> }
@@ -39,8 +38,7 @@ def parse_lfn(lfn):
     dur = int(dur_s)
     return (site, frametype, gpsstart, dur, ext)
 
-def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN,
-            output=DEFAULT_OUTPUT):
+def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN):
     # walk path, skip all paths that we have seen on "interesting"
     # directories, ls the interesting ones, parse filenames, get the
     # earlies gps in interval [gps, gps+step], write info to filehandle
@@ -104,7 +102,7 @@ if __name__ == "__main__":
     from optparse import OptionParser
 
     usage = "usage: %prog PATH0 PATH1 ... PATHn [options]"
-    description = """Scan each PATH for files, write output in chtofr-format to OUTPUT
+    description = """Scan each PATH for files, write output in chtofr-format to STDOUT
                      until done."""
     version = "%prog 0.1"
 
@@ -121,12 +119,9 @@ if __name__ == "__main__":
     parser.add_option("-F", "--frchannels-binary",
                       help="[default: %s ] Path to FrChannels binary" % DEFAULT_FRCHAN, 
                       default=DEFAULT_FRCHAN)
-    parser.add_option("-o", "--output",
-                      help="[default: %s ] write to OUTPUT" % DEFAULT_OUTPUT, 
-                      default=DEFAULT_OUTPUT)
     (opts, args) = parser.parse_args()
 
-    kwargs={"step": opts.step, "frchannels_binary": opts.frchannels_binary, "output": opts.output}
+    kwargs={"step": opts.step, "frchannels_binary": opts.frchannels_binary}
 
     if opts.cache:
         try:
@@ -140,4 +135,3 @@ if __name__ == "__main__":
     if opts.cache:
         with open(opts.cache, 'w') as fh:
             pickle.dump(HOT_DIR, fh)
-
