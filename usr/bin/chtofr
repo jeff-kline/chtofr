@@ -120,7 +120,12 @@ if __name__ == "__main__":
     usage = "usage: %prog [options]"
     description = ' '.join("""The db witer of frame channel data. Input is plain text with fields
     'ch_prefix channel frame_type gps nchannels fname'. Writes to
-    database are write-once-idempotent (roughly, "INSERT IGNORE").""".split())
+    database are write-once-idempotent (roughly, "INSERT IGNORE").
+    The mapping of channels -> files is non-deterministic. As a
+    result, it is possible that a channel is mapped to a file that it
+    does not really contain. Fortunately, the non-determinism is local
+    in time, so nearby (in time) files *will* contain the channels in
+    the mapping, and this is good enough for this application.""".split())
     version = "%prog 0.1"
 
     parser = OptionParser(usage, version=version, description=description)

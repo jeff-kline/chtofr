@@ -95,7 +95,7 @@ def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN,
             nchannels=len(output)
             for channel in output:
                 ch_prefix, ch_name = channel.split(':')
-                print ch_prefix, ch_name, _ft, xl, nchannels, _f
+                print ch_prefix, ch_name, _ft, tread, nchannels, _f
             
 # if GPS is none, set to  int(now())/STEP*STEP.
 # 
