@@ -19,6 +19,33 @@ function cleardb {
     mysql --user=${DBUSER} -p${DBPW} -D${DBDB} < ${t_init}
 }
 
+function bigquery {
+    # input base filename is 1
+    # error message is 2
+    # any last-stage filtering is 3
+    mysql --user=$DBUSER -p$DBPW -D$DBDB -e \
+	'SELECT ch_prefix,channel,frame_type,gps,nchannels,fpath FROM t_map \
+   JOIN t_frame_info ON t_map.frame_info_pk=t_frame_info.frame_info_pk \
+   JOIN t_frame_type ON t_frame_info.frame_type_pk=t_frame_type.frame_type_pk \
+   JOIN t_channel ON t_map.channel_pk = t_channel.channel_pk \
+   JOIN t_ch_prefix ON t_map.ch_prefix_pk = t_ch_prefix.ch_prefix_pk' |\
+   tr '\t' ' ' |\
+   tail +2 |\
+   sort |\
+   grep -v PREFIX_LX  > $1_query
+
+   # compare output
+   sort $1 | $3 > $1_sort
+   set +e
+   diff $1_query $1_sort > /dev/null
+   if [ $? -gt 0 ]; then
+       echo $2
+       exit 1
+   fi
+   set -e
+   rm $1_query $1_sort
+}
+
 BIN=../usr/bin/chtofr.py
 OPT="--database ${DBCFG}"
 CACHE=cachef.pkl
@@ -27,7 +54,7 @@ CACHE=cachef.pkl
 # test empty input
 cleardb 
 INPUT=foo
-rm -f $INPUT && touch $INPUT
+rm -f ${INPUT}* && touch $INPUT
 $BIN $OPT --input $INPUT
 cat $INPUT | $BIN $OPT
 rm -f $INPUT
@@ -45,26 +72,7 @@ echo PREFIX_L0 CHANNEL_PEM_L0 FT_0 10800 100 /qwer/foo/100 >> $INPUT
 echo PREFIX_L0 CHANNEL_PEM_L0 FT_0 10800 200 /qwer/foo/200 >> $INPUT
 $BIN $OPT --input $INPUT 2> /dev/null
 
-# do the BIG QUERY
-mysql --user=$DBUSER -p$DBPW -D$DBDB -e \
-  'SELECT ch_prefix,channel,frame_type,gps,nchannels,fpath FROM t_map \
-   JOIN t_frame_info ON t_map.frame_info_pk=t_frame_info.frame_info_pk \
-   JOIN t_frame_type ON t_frame_info.frame_type_pk=t_frame_type.frame_type_pk \
-   JOIN t_channel ON t_map.channel_pk = t_channel.channel_pk \
-   JOIN t_ch_prefix ON t_map.ch_prefix_pk = t_ch_prefix.ch_prefix_pk' |\
-   tr '\t' ' ' |\
-   tail +2 |\
-   sort |\
-   grep -v PREFIX_LX > ${INPUT}0
-cat ${INPUT} | head -n1 > ${INPUT}1
-set +e
-diff ${INPUT}0 ${INPUT}1 > /dev/null
-if [ $? -gt 0 ]; then
-    echo error: the second INSERT operation was not ignored
-    exit 1
-fi
-set -e
-
+bigquery ${INPUT} "error: the second INSERT operation was not ignored" "head -n1"
 rm -f $INPUT
 $SUCCESS
 #<<< TEST
@@ -75,7 +83,7 @@ cleardb
 echo PREFIX_LX CHANNEL_PEM_LX FT_X 5 10 /qwer/asdf/sdfg/foo >> $INPUT
 $BIN $OPT --input $INPUT --step=5
 # test idempotence
-# $BIN $OPT --input $INPUT --step=5
+$BIN $OPT --input $INPUT --step=5
 
 # test bad gps time as input 
 set +e
@@ -101,24 +109,25 @@ for j in `seq 1000`; do
     done;
 done;
 
-# write to db, twice!
 # first create the cache
 $BIN $OPT --input $INPUT --cache $CACHE 
+bigquery ${INPUT} "error: first test with cache failed" cat
 # next, read from the cache (this should run much faster than the previous cmd)
 $BIN $OPT --input $INPUT --cache $CACHE 
-
-rm -f $CACHE
+bigquery ${INPUT} "error: second test with cache failed; idempotence fail" cat
+rm -f ${INPUT} ${CACHE}
 $SUCCESS
 #<<<TEST
 
 #>>> TEST
 cleardb
 # build a complicated input file, compare expected output against input
+step=23
 for j in `seq 7`; do
     for f in `seq 4`; do
 	for g in `seq 5`; do
 	    for l in `seq 11`; do
-		echo PREFIX_L${l} CHANNEL_PEM_L${j} FT_${f} $(( ${g}*10800 )) ${g} /qwer/foo/${g} >>\
+		echo PREFIX_L${l} CHANNEL_PEM_L${j} FT_${f} $(( ${g}*${step} )) ${g} /qwer/foo/${g} >>\
                      $INPUT
 	    done;
 	done;
@@ -126,32 +135,12 @@ for j in `seq 7`; do
 done;
 
 # write to db
-$BIN $OPT --input $INPUT
-
+$BIN $OPT --input $INPUT --step=${step}
 # do the BIG QUERY
-mysql --user=$DBUSER -p$DBPW -D$DBDB -e \
-  'SELECT ch_prefix,channel,frame_type,gps,nchannels,fpath FROM t_map \
-   JOIN t_frame_info ON t_map.frame_info_pk=t_frame_info.frame_info_pk \
-   JOIN t_frame_type ON t_frame_info.frame_type_pk=t_frame_type.frame_type_pk \
-   JOIN t_channel ON t_map.channel_pk = t_channel.channel_pk \
-   JOIN t_ch_prefix ON t_map.ch_prefix_pk = t_ch_prefix.ch_prefix_pk' |\
-   tr '\t' ' ' |\
-   tail +2 |\
-   sort |\
-   grep -v PREFIX_LX > ${INPUT}0
-
-# compare output
-sort ${INPUT} > ${INPUT}1
-set +e
-diff ${INPUT}0 ${INPUT}1 > /dev/null
-if [ $? -gt 0 ]; then
-    echo error: t_map does not contain all information in ${INPUT}
-    exit 1
-fi
-set -e
-cat $INPUT | $BIN $OPT
-
-rm -f ${INPUT}{,0,1}
+bigquery ${INPUT} "error: t_map does not contain all information in ${INPUT}" cat
+cat $INPUT | $BIN $OPT --step=${step}
+bigquery ${INPUT} "error: failed idempotent test" cat
+rm -f ${INPUT}
 $SUCCESS
 #<<< TEST
 
@@ -165,29 +154,10 @@ for k in `seq 2`; do
 done
 # write to db
 $BIN $OPT --input $INPUT
-
-# do the BIG QUERY
-mysql --user=$DBUSER -p$DBPW -D$DBDB -e \
-  'SELECT ch_prefix,channel,frame_type,gps,nchannels,fpath FROM t_map \
-   JOIN t_frame_info ON t_map.frame_info_pk=t_frame_info.frame_info_pk \
-   JOIN t_frame_type ON t_frame_info.frame_type_pk=t_frame_type.frame_type_pk \
-   JOIN t_channel ON t_map.channel_pk = t_channel.channel_pk \
-   JOIN t_ch_prefix ON t_map.ch_prefix_pk = t_ch_prefix.ch_prefix_pk' |\
-   tr '\t' ' ' |\
-   tail +2 |\
-   sort |\
-   grep -v PREFIX_LX > ${INPUT}0
-
-sort ${INPUT} > ${INPUT}1
-set +e
-diff ${INPUT}0 ${INPUT}1 > /dev/null
-if [ $? -gt 0 ]; then
-    echo error: t_map does not contain all information in ${INPUT}
-    exit 1
-fi
-set -e
-cat $INPUT | $BIN $OPT
-rm -f ${INPUT}{,0,1}
+bigquery ${INPUT} "error: t_map does not contain all information in ${INPUT}" cat
+$BIN $OPT --input $INPUT
+bigquery ${INPUT} "error: failed idempotent test" cat
+rm -f ${INPUT}
 $SUCCESS
 #<<< TEST
 

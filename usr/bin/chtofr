@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-import cPickle as pickle
+# -*- Python -*-
 import numbers
-
 
 DEFAULT_STEP=10800 # 8 hours
 DEFAULT_DATABASE_FILE = "/etc/chtofr/db.json"
@@ -19,11 +18,13 @@ def sqlcstr(v):
 
 def _pk(conn, tname, arg, col=None, xarg=[], xcol=[]):
     """
+    get primary key, if not available, then set it
+
     conn: open connection to database
     tname: type name for database tables/column names
-    arg: the value to set or get
+    arg: the value to set or get. Primary key value.
     col: column list. If None, then it will be set to tname.
-    these are primary keys
+    column must either be None or a list of primary keys.
 
     # these are not primary keys
     xarg: the value to set or get
@@ -110,23 +111,24 @@ if __name__ == "__main__":
     from optparse import OptionParser
     from sqlalchemy import create_engine, MetaData
     from string import Template
+
+    import cPickle as pickle
+    import functools
     import json
     import sys
 
     usage = "usage: %prog [options]"
-    description = """The db witer of frame channel data. Input is plain text with fields
-    'ch_prefix channel frame_type gps nchannels fname'. It is an error
-    to write rows to db that would cause uniqueness constraints in the
-    db to be violated. This is a potential issue for (frametype, gps)
-    key that is associated with multiple filepaths or nchannels. """
+    description = ' '.join("""The db witer of frame channel data. Input is plain text with fields
+    'ch_prefix channel frame_type gps nchannels fname'. Writes to
+    database are write-once-idempotent (roughly, "INSERT IGNORE").""".split())
     version = "%prog 0.1"
 
     parser = OptionParser(usage, version=version, description=description)
     parser.add_option("-d", "--database",
                       help="[default: %s] Configuration file for database access" %
                       (DEFAULT_DATABASE_FILE), default=DEFAULT_DATABASE_FILE)
-    helpstr="""[default: %d] GPS step size.  Every gps time in INPUT must be a
-               multiple of STEP. This is for debugging.""" % (DEFAULT_STEP)
+    helpstr=' '.join("""[default: %d] GPS step size.  Every gps time in INPUT must be a
+               multiple of STEP. This is for debugging.""".split()) % (DEFAULT_STEP)
     parser.add_option("-s", "--step",
                       help=helpstr, default=DEFAULT_STEP, type="int")
     parser.add_option("-i", "--input",
@@ -152,11 +154,12 @@ if __name__ == "__main__":
     metadata.reflect()
 
     with engine.connect() as conn:
+        _input_many_partial=functools.partial(_input_many, conn, step=opts.step)
         if opts.input:
             with open(opts.input, 'r') as fh:
-                _input_many(conn, fh, step=opts.step)
+                _input_many_partial(fh)
         else:
-            _input_many(conn, sys.stdin)
+            _input_many_partial(sys.stdin)
 
     if opts.cache:
         with open(opts.cache, 'w') as fh:
