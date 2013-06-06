@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- Python -*-
 import numbers
+from contextlib import closing
 
 DEFAULT_STEP=10800 # 8 hours
 DEFAULT_DATABASE_FILE = "/etc/chtofr/db.json"
@@ -158,7 +159,7 @@ if __name__ == "__main__":
     metadata = MetaData(bind=engine)
     metadata.reflect()
 
-    with engine.connect() as conn:
+    with closing(engine.connect()) as conn:
         _input_many_partial=functools.partial(_input_many, conn, step=opts.step)
         if opts.input:
             with open(opts.input, 'r') as fh:
