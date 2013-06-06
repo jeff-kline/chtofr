@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-
+# -*- Python -*-
 
 DEFAULT_FRCHAN="/usr/bin/FrChannels"
 DEFAULT_STEP=10800 # 8 hours
 DEFAULT_OUTPUT="-"
 
 # dirpath: last read time
-# only put dirpath here if dirpath contains frames or is empty
+# only put dirpath here if dirpath contains frames 
 CACHE={}
 
 # expected use pattern:
@@ -45,7 +45,7 @@ if __name__ == "__main__":
                       help=helpstr, default=DEFAULT_STEP, type="int")
     parser.add_option("-c", "--cache",
                       help="[default: None] cache file", default=None)
-    parser.add_option("-f", "--frchannels",
+    parser.add_option("-F", "--frchannels-binary",
                       help="[default: %s ] Path to FrChannels binary" % DEFAULT_FRCHAN, 
                       default=DEFAULT_FRCHAN)
     parser.add_option("-o", "--output",
