@@ -36,19 +36,35 @@ $SUCCESS
 
 #>>> TEST
 cleardb
-# build a duplicate ft-gps key, this should cause an error.
+# build a duplicate ft-gps key, should be idempotent, silently ignore
+# second entry.
+#
 # 100 channels, filename is 100
 echo PREFIX_L0 CHANNEL_PEM_L0 FT_0 10800 100 /qwer/foo/100 >> $INPUT
 # 200 channels, filename is 200 
 echo PREFIX_L0 CHANNEL_PEM_L0 FT_0 10800 200 /qwer/foo/200 >> $INPUT
-# write to db, expect an error!
-set +e
 $BIN $OPT --input $INPUT 2> /dev/null
-if [ $? -eq 0 ]; then 
-    echo duplicate key should have generated an error, it did not!
-    exit 1; 
+
+# do the BIG QUERY
+mysql --user=$DBUSER -p$DBPW -D$DBDB -e \
+  'SELECT ch_prefix,channel,frame_type,gps,nchannels,fpath FROM t_map \
+   JOIN t_frame_info ON t_map.frame_info_pk=t_frame_info.frame_info_pk \
+   JOIN t_frame_type ON t_frame_info.frame_type_pk=t_frame_type.frame_type_pk \
+   JOIN t_channel ON t_map.channel_pk = t_channel.channel_pk \
+   JOIN t_ch_prefix ON t_map.ch_prefix_pk = t_ch_prefix.ch_prefix_pk' |\
+   tr '\t' ' ' |\
+   tail +2 |\
+   sort |\
+   grep -v PREFIX_LX > ${INPUT}0
+cat ${INPUT} | head -n1 > ${INPUT}1
+set +e
+diff ${INPUT}0 ${INPUT}1 > /dev/null
+if [ $? -gt 0 ]; then
+    echo error: the second INSERT operation was not ignored
+    exit 1
 fi
 set -e
+
 rm -f $INPUT
 $SUCCESS
 #<<< TEST
@@ -59,7 +75,7 @@ cleardb
 echo PREFIX_LX CHANNEL_PEM_LX FT_X 5 10 /qwer/asdf/sdfg/foo >> $INPUT
 $BIN $OPT --input $INPUT --step=5
 # test idempotence
-$BIN $OPT --input $INPUT --step=5
+# $BIN $OPT --input $INPUT --step=5
 
 # test bad gps time as input 
 set +e

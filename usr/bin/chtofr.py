@@ -10,12 +10,24 @@ DEFAULT_DATABASE_FILE = "/etc/chtofr/db.json"
 # populated from a file, but still want it as a global variable.
 CACHED_PK={}
 
-def _pk(conn, tname, arg, col=None, ):
+# a pair of sql string formatting functions
+def sqlvstr(v):
+    # this is fine since we only use strings and integer-like types
+    return "'%s'" % str(v)
+def sqlcstr(v):
+    return "`%s`" % str(v)
+
+def _pk(conn, tname, arg, col=None, xarg=[], xcol=[]):
     """
     conn: open connection to database
     tname: type name for database tables/column names
     arg: the value to set or get
-    col: optional column list. If None, then it will be set to tname.
+    col: column list. If None, then it will be set to tname.
+    these are primary keys
+
+    # these are not primary keys
+    xarg: the value to set or get
+    xcol: optional column list. If None, then it will be set to tname.
 
     SELECT "${tname}_pk" FROM t_${tname} WHERE  ${tname} = ${arg}
 
@@ -25,27 +37,19 @@ def _pk(conn, tname, arg, col=None, ):
     # make two attempts to get the pk value: cached version and then
     # sql version. Assuming both fail, then insert to db and then do a
     # final select to return it
-    try: 
-        return CACHED_PK[(tname, arg)]
-    except KeyError: 
-        pass
-
-    # a pair of sql string formatting functions
-    def sqlvstr(v):
-        # this is fine since we only use strings and integer-like types
-        return "'%s'" % str(v)
-    def sqlcstr(v):
-        return "`%s`" % str(v)
+    try: return CACHED_PK[(tname, arg)]
+    except KeyError: pass
 
     # build the sql
     select_str = "SELECT `${tname}_pk` FROM `t_${tname}` WHERE "
-    if col is None:
+    if not col:
         sel_suffix="`${tname}` = '${arg}'"
         ins_suffix=sel_suffix
     else:
         _suffix=[ sqlcstr(c) + " = " + sqlvstr(v) for c,v in zip(col,arg)]
+        _xsuffix=[ sqlcstr(c) + " = " + sqlvstr(v) for c,v in zip(xcol,xarg)]
         sel_suffix=' AND '.join(_suffix)
-        ins_suffix=', '.join(_suffix) 
+        ins_suffix=', '.join(_suffix + _xsuffix) 
 
     # try to get from database, insert in db if not available
     sql_dict={"tname": tname, "arg": arg}
@@ -53,7 +57,7 @@ def _pk(conn, tname, arg, col=None, ):
     select_sql=select_tmpl.substitute(sql_dict)
     pk_rp = conn.execute(select_sql).fetchone()
     if pk_rp is None:
-        insert_str="INSERT INTO `t_${tname}` SET " + ins_suffix
+        insert_str="INSERT IGNORE INTO `t_${tname}` SET " + ins_suffix
         insert_tmpl=Template(insert_str)
         insert_sql=insert_tmpl.substitute(sql_dict)
         rp=conn.execute(insert_sql)
@@ -89,10 +93,18 @@ def _input_one(conn, ch_prefix, channel, frame_type, gps, nchannels, fpath, step
         channel_pk = _pk(conn, "channel", channel)
         frame_type_pk = _pk(conn, "frame_type", frame_type)
         frame_info_pk = _pk(conn, "frame_info", 
-                            (frame_type_pk, gps, nchannels, fpath), 
-                            col=("frame_type_pk", "gps", "nchannels", "fpath"))
-        map_pk = _pk(conn, "map", (ch_prefix_pk, channel_pk, frame_info_pk), 
-                     col=("ch_prefix_pk", "channel_pk", "frame_info_pk"))
+                            (frame_type_pk, gps), 
+                            col=("frame_type_pk", "gps"),
+                            xarg=(nchannels, fpath), 
+                            xcol=("nchannels", "fpath"))
+
+        # map_pk is special. Do not call _pk
+        col=("ch_prefix_pk", "channel_pk", "frame_info_pk")
+        arg=(ch_prefix_pk, channel_pk, frame_info_pk)
+        _suffix=[ sqlcstr(c) + " = " + sqlvstr(v) for c,v in zip(col,arg)]
+        ins_suffix=', '.join(_suffix) 
+        insert_str="INSERT IGNORE INTO `t_map` SET " + ins_suffix
+        conn.execute(insert_str)
 
 if __name__ == "__main__":
     from optparse import OptionParser
