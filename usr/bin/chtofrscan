@@ -1,32 +1,105 @@
 #!/usr/bin/env python
 # -*- Python -*-
+# vim: syntax on:set syntax=python
+# expected use pattern:
+#   chtofrscan PATHLIST [options] | chtofr [options]
+
+import bisect
+import cPickle as pickle
+import os
+import subprocess
+import tempfile
 
 DEFAULT_FRCHAN="/usr/bin/FrChannels"
 DEFAULT_STEP=10800 # 8 hours
 DEFAULT_OUTPUT="-"
 
-# dirpath: last read time
-# only put dirpath here if dirpath contains frames 
-CACHE={}
-
-# expected use pattern:
-#   chtofrscan PATHLIST [options] | chtofr [options]
+# schema of CACHE is
+# { <dirpath>: <last read time> }
+#
+# dirpath is key only if it contains frames
+HOT_DIR={}
 
 # scan each PATH in PATHLIST, use cache as optimization, write to
 # stdout as we go...
 
-def _output(path, gps, step=DEFAULT_STEP, frchannels=DEFAULT_FRCHAN, 
-            output=DEFAULT_OUTPUT):
-    # walk path, skipping all paths that we have seen on interesting
-    # directories, list them, parse filenames, get the latest gps in
-    # interval [gps-step, gps], write info to filehandle output
-    pass
+# http://docs.python.org/2/library/bisect.html
+def find_ge(a, x):
+    'Find leftmost item greater than or equal to x'
+    i = bisect.bisect_left(a, x)
+    if i != len(a):
+        return a[i]
+    raise ValueError
 
+def parse_lfn(lfn):
+    "return tuple (site, frametype, (int) gpsstart, (int) dur)"
+    site,frametype,gpsstart_s,dur_ext = lfn.split('-')
+    gpsstart = int(gpsstart_s)
+    dur_s, ext = dur_ext.split('.')
+    dur = int(dur_s)
+    return (site, frametype, gpsstart, dur, ext)
+
+def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN,
+            output=DEFAULT_OUTPUT):
+    # walk path, skip all paths that we have seen on "interesting"
+    # directories, ls the interesting ones, parse filenames, get the
+    # earlies gps in interval [gps, gps+step], write info to filehandle
+    # output
+    for dirpath, dirname_l, filename_l in os.walk(path):
+        # remove hot directories from the list to traverse
+        for _dir in list(dirname_l):
+            _fulldir = os.path.join(dirpath, _dir)
+            try:
+                # remove from list to  skip _dir on next iteration
+                if os.path.getmtime(_fulldir) <= HOT_DIR[_fulldir]:
+                    dirname_l.remove(_dir)
+            except KeyError: pass
+
+        gps_d={}
+        for f in filename_l:
+            try: (site, frametype, gpsstart, dur, ext) = parse_lfn(f)
+            except: continue
+            gps_d[gpsstart]={"file": os.path.join(dirpath,f), "frametype": frametype}
+            HOT_DIR[dirpath] = os.path.getmtime(dirpath)
+
+        # all gps times are known. Get the files of interest.
+        step_list=list(set(g/step*step for g in gps_d))
+        step_list.sort()
+        gps_list=gps_d.keys()
+        gps_list.sort()
+        for tread in step_list:
+            # get smallest gpsstart in [seg; seg+step)
+            try: 
+                xl = find_ge(gps_list, tread)
+                if xl >= tread+step: continue
+            except ValueError: 
+                continue
+
+            _f_ft_d = gps_d[xl]
+            _f = _f_ft_d["file"]
+            _ft = _f_ft_d["frametype"]
+            # run frcheck on _f.  write output in format required by
+            # chtofr: ch_prefix channel frame_type gps nchannels fname
+
+            # a debug/test state; mock output!
+            if not frchannels_binary:
+                output=["X0:foobar_" + str(j) for j in range(5)]
+            else:
+                with tempfile.TemporaryFile() as fh:
+                    p=subprocess.Popen([frchannels_binary, _f], stdout=fh)
+                    p.communicate()
+                    fh.flush()
+                    fh.seek(0)
+                    output=[l.split()[0] for l in fh.readlines()]
+
+            nchannels=len(output)
+            for channel in output:
+                ch_prefix, ch_name = channel.split(':')
+                print ch_prefix, ch_name, _ft, xl, nchannels, _f
+            
 # if GPS is none, set to  int(now())/STEP*STEP.
 # 
 # get info from file with largest gpsstart in [GPS-STEP, GPS]
-
-
 if __name__ == "__main__":
     from optparse import OptionParser
 
@@ -53,7 +126,18 @@ if __name__ == "__main__":
                       default=DEFAULT_OUTPUT)
     (opts, args) = parser.parse_args()
 
-    kwargs={"step": opts.step, "frchannels": opts.frchannels, "output": opts.output}
+    kwargs={"step": opts.step, "frchannels_binary": opts.frchannels_binary, "output": opts.output}
+
+    if opts.cache:
+        try:
+            with open(opts.cache, 'r') as fh:
+                HOT_DIR=pickle.load(fh)
+        except: pass
+
     for path in args:
         _output(path, **kwargs)
+
+    if opts.cache:
+        with open(opts.cache, 'w') as fh:
+            pickle.dump(HOT_DIR, fh)
 

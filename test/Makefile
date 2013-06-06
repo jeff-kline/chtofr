@@ -1,4 +1,4 @@
-TESTS=testsql.sh testchtofr.sh
+TESTS=testsql.sh testchtofr.sh testchtofrscan.sh
 PYTHON=python
 
 all: $(TESTS)

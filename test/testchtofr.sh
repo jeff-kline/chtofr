@@ -46,7 +46,7 @@ function bigquery {
    rm $1_query $1_sort
 }
 
-BIN=../usr/bin/chtofr.py
+BIN=../usr/bin/chtofr
 OPT="--database ${DBCFG}"
 CACHE=cachef.pkl
 
