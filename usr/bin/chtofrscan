@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 DEFAULT_FRCHAN="/usr/bin/FrChannels"
-DEFAULT_STEP=10800 # 8 hours
+DEFAULT_STEP=86400
 
 # schema of CACHE is
 # { <dirpath>: <last read time> }
@@ -81,7 +81,7 @@ def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN):
 
             # a debug/test state; mock output!
             if not frchannels_binary:
-                output=["X0:foobar_" + str(j) for j in range(5)]
+                output=["X0:SSYS-foobar_" + str(j) for j in range(5)]
             else:
                 with tempfile.TemporaryFile() as fh:
                     p=subprocess.Popen([frchannels_binary, _f], stdout=fh)
@@ -90,10 +90,18 @@ def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN):
                     fh.seek(0)
                     output=[l.split()[0] for l in fh.readlines()]
 
-            nchannels=len(output)
+            nchannel_s=str(len(output))
+            tread_s=str(tread)
             for channel in output:
-                ch_prefix, ch_name = channel.split(':')
-                print ch_prefix, ch_name, _ft, tread, nchannels, _f
+                ch_prefix, ch_subsys_name_attr = channel.split(':')
+                ch_subsystem, ch_name_attr = ch_subsys_name_attr.split('-')
+                if '.' not in ch_name_attr:
+                    ch_name = ch_name_attr
+                    ch_attr = ''
+                else:
+                    ch_name, ch_attr = ch_name_attr.split('.')
+                row=[ch_prefix, ch_subsystem, ch_name, ch_attr, _ft, tread_s, nchannel_s, _f]
+                print ','.join(row)
             
 # if GPS is none, set to  int(now())/STEP*STEP.
 # 

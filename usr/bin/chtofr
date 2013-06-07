@@ -3,7 +3,7 @@
 import numbers
 from contextlib import closing
 
-DEFAULT_STEP=10800 # 8 hours
+DEFAULT_STEP=86400 
 DEFAULT_DATABASE_FILE = "/etc/chtofr/db.json"
 
 # store known pk's to avoid multiple lookups this can also be
@@ -74,9 +74,9 @@ def _input_many(conn, fh, **kwargs):
     ch_prefix channel frame_type gps nchannels fpath
     """
     for line in fh:
-        _input_one(conn, *line.split(), **kwargs)
+        _input_one(conn, *[s.strip() for s in line.split(',')], **kwargs)
 
-def _input_one(conn, ch_prefix, channel, frame_type, gps, nchannels, fpath, step=DEFAULT_STEP):
+def _input_one(conn, ch_prefix, ch_subsystem, channel, ch_attr, frame_type, gps, nchannels, fpath, step=DEFAULT_STEP):
     """
     insert the args into database pointed to by conn.
     
@@ -92,7 +92,9 @@ def _input_one(conn, ch_prefix, channel, frame_type, gps, nchannels, fpath, step
     with conn.begin():
         # create or read the primary keys:
         ch_prefix_pk = _pk(conn, "ch_prefix", ch_prefix)
+        ch_subsystem_pk = _pk(conn, "ch_subsystem", ch_subsystem)
         channel_pk = _pk(conn, "channel", channel)
+        ch_attr_pk = _pk(conn, "ch_attr", ch_attr)
         frame_type_pk = _pk(conn, "frame_type", frame_type)
         frame_info_pk = _pk(conn, "frame_info", 
                             (frame_type_pk, gps), 
@@ -101,8 +103,8 @@ def _input_one(conn, ch_prefix, channel, frame_type, gps, nchannels, fpath, step
                             xcol=("nchannels", "fpath"))
 
         # map_pk is special. Do not call _pk
-        col=("ch_prefix_pk", "channel_pk", "frame_info_pk")
-        arg=(ch_prefix_pk, channel_pk, frame_info_pk)
+        col=("ch_prefix_pk", "ch_subsystem_pk", "channel_pk", "ch_attr_pk", "frame_info_pk")
+        arg=( ch_prefix_pk,   ch_subsystem_pk,   channel_pk,   ch_attr_pk,   frame_info_pk)
         _suffix=[ sqlcstr(c) + " = " + sqlvstr(v) for c,v in zip(col,arg)]
         ins_suffix=', '.join(_suffix) 
         insert_str="INSERT IGNORE INTO `t_map` SET " + ins_suffix
@@ -119,9 +121,10 @@ if __name__ == "__main__":
     import sys
 
     usage = "usage: %prog [options]"
-    description = ' '.join("""The db witer of frame channel data. Input is plain text with fields
-    'ch_prefix channel frame_type gps nchannels fname'. Writes to
-    database are write-once-idempotent (roughly, "INSERT IGNORE").
+    description = ' '.join(""" The db witer of frame channel data. Input is plain text with
+    comma-delimited fields
+    'ch_prefix,ch_subsystem,channel,ch_attr,frame_type,gps,nchannels,fname'. Writes
+    to database are write-once-idempotent (roughly, "INSERT IGNORE").
     The mapping of channels -> files is non-deterministic. As a
     result, it is possible that a channel is mapped to a file that it
     does not really contain. Fortunately, the non-determinism is local

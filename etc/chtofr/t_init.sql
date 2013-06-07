@@ -24,6 +24,15 @@ CREATE TABLE IF NOT EXISTS t_channel (
     UNIQUE INDEX (`channel`)
 ) ENGINE=InnoDB CHARACTER SET latin1 COLLATE latin1_bin;
 
+CREATE TABLE IF NOT EXISTS t_ch_subsystem (
+    `ch_subsystem_pk` INTEGER(11) UNSIGNED NOT NULL  AUTO_INCREMENT,
+    `ch_subsystem` VARCHAR(16)  NOT NULL,
+
+    /* meta */
+    PRIMARY KEY (`ch_subsystem_pk`),
+    UNIQUE INDEX (`ch_subsystem`)
+) ENGINE=InnoDB CHARACTER SET latin1 COLLATE latin1_bin;
+
 CREATE TABLE IF NOT EXISTS t_ch_prefix (
     `ch_prefix_pk` INTEGER(11) UNSIGNED NOT NULL  AUTO_INCREMENT,
     `ch_prefix` VARCHAR(16)  NOT NULL,
@@ -31,6 +40,15 @@ CREATE TABLE IF NOT EXISTS t_ch_prefix (
     /* meta */
     PRIMARY KEY (`ch_prefix_pk`),
     UNIQUE INDEX (`ch_prefix`)
+) ENGINE=InnoDB CHARACTER SET latin1 COLLATE latin1_bin;
+
+CREATE TABLE IF NOT EXISTS t_ch_attr (
+    `ch_attr_pk` INTEGER(11) UNSIGNED NOT NULL  AUTO_INCREMENT,
+    `ch_attr` VARCHAR(16)  NOT NULL,
+
+    /* meta */
+    PRIMARY KEY (`ch_attr_pk`),
+    UNIQUE INDEX (`ch_attr`)
 ) ENGINE=InnoDB CHARACTER SET latin1 COLLATE latin1_bin;
 
 CREATE TABLE IF NOT EXISTS t_frame_type (
@@ -59,13 +77,17 @@ CREATE TABLE IF NOT EXISTS t_frame_info (
 CREATE TABLE IF NOT EXISTS t_map (
     `map_pk` BIGINT UNSIGNED NOT NULL  AUTO_INCREMENT,
     `ch_prefix_pk` INTEGER UNSIGNED NOT NULL,
+    `ch_subsystem_pk` INTEGER UNSIGNED NOT NULL,
+    `ch_attr_pk` INTEGER UNSIGNED NOT NULL,
     `channel_pk` INTEGER UNSIGNED NOT NULL,
     `frame_info_pk` INTEGER UNSIGNED NOT NULL,
 
     /* meta */
     PRIMARY KEY (`map_pk`),
-    UNIQUE INDEX (`ch_prefix_pk`, `channel_pk`, `frame_info_pk`),
+    UNIQUE INDEX (`ch_prefix_pk`, `ch_subsystem_pk`, `channel_pk`, `ch_attr_pk`, `frame_info_pk`),
     FOREIGN KEY (`ch_prefix_pk`) REFERENCES t_ch_prefix(`ch_prefix_pk`),
+    FOREIGN KEY (`ch_subsystem_pk`) REFERENCES t_ch_subsystem(`ch_subsystem_pk`),
+    FOREIGN KEY (`ch_attr_pk`) REFERENCES t_ch_attr(`ch_attr_pk`),
     FOREIGN KEY (`channel_pk`) REFERENCES t_channel(`channel_pk`),
     FOREIGN KEY (`frame_info_pk`) REFERENCES t_frame_info(`frame_info_pk`)
 ) ENGINE=InnoDB CHARACTER SET latin1 COLLATE latin1_bin;
