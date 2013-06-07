@@ -81,7 +81,17 @@ def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN):
 
             # a debug/test state; mock output!
             if not frchannels_binary:
-                output=["X0:SSYS-foobar_" + str(j) for j in range(5)]
+                # each of these patterns is viable and most of the
+                # patterns actually occur.  'output' should have
+                # length 5 for tests.
+                output=["X0:SSYS-foobar_0.attr",
+                        "X0:SSYS-foobar_0",
+                        
+                        "X0-SSYS:foobar_0.attr",
+                        "X0-SSYS:foobar_0",
+
+                        "X0-FOO:SSYS-foobar_0.attr0",
+                    ]
             else:
                 with tempfile.TemporaryFile() as fh:
                     p=subprocess.Popen([frchannels_binary, _f], stdout=fh)
@@ -94,12 +104,18 @@ def _output(path, step=DEFAULT_STEP, frchannels_binary=DEFAULT_FRCHAN):
             tread_s=str(tread)
             for channel in output:
                 ch_prefix, ch_subsys_name_attr = channel.split(':')
-                ch_subsystem, ch_name_attr = ch_subsys_name_attr.split('-')
-                if '.' not in ch_name_attr:
+                try:
+                    ch_subsystem, ch_name_attr = ch_subsys_name_attr.split('-')
+                except:
+                    ch_name_attr = ch_subsys_name_attr
+                    ch_subsystem = ''
+
+                try:
+                    ch_name, ch_attr = ch_name_attr.split('.')
+                except:
                     ch_name = ch_name_attr
                     ch_attr = ''
-                else:
-                    ch_name, ch_attr = ch_name_attr.split('.')
+                    
                 row=[ch_prefix, ch_subsystem, ch_name, ch_attr, _ft, tread_s, nchannel_s, _f]
                 print ','.join(row)
             
