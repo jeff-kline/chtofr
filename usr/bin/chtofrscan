@@ -116,9 +116,6 @@ if __name__ == "__main__":
 
     parser = OptionParser(usage, version=version, description=description)
 
-    helpstr="""[default: None] GPS time to scan. If None, use current time."""
-    parser.add_option("-g", "--gps",
-                      help=helpstr, default=None, type="int")
     helpstr="""[default: %d] GPS step size. This is for debugging.""" % (DEFAULT_STEP)
     parser.add_option("-s", "--step",
                       help=helpstr, default=DEFAULT_STEP, type="int")
