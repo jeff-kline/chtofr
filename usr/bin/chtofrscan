@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 DEFAULT_FRCHAN="/usr/bin/FrChannels"
-DEFAULT_STEP=86400
+DEFAULT_STEP=86400 * 7 # 1 week
 
 # schema of CACHE is
 # { <dirpath>: <last read time> }

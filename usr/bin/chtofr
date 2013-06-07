@@ -3,8 +3,8 @@
 import numbers
 from contextlib import closing
 
-DEFAULT_STEP=86400 
 DEFAULT_DATABASE_FILE = "/etc/chtofr/db.json"
+DEFAULT_STEP=86400 * 7 # 1 week
 
 # store known pk's to avoid multiple lookups this can also be
 # populated from a file, but still want it as a global variable.
